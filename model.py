@@ -54,12 +54,16 @@ def segment_image(image, points):
         )
 
         best_mask = masks[np.argmax(scores)]
+        kernel = np.ones((9, 9), np.uint8)
+        best_mask_dilated = cv2.dilate(best_mask.astype(np.uint8), kernel, iterations=2)
+
+        best_mask_dilated = best_mask_dilated.astype(best_mask.dtype)
 
         segmented_image = image.copy()
         # 0为没有被sam出来的部分， 1为sam出来的
         segmented_image[best_mask == 0] = 0
 
-        return segmented_image, best_mask
+        return segmented_image, best_mask_dilated
     except Exception as e:
         print(f"Error during prediction: {e}")
         return None, None
@@ -67,9 +71,11 @@ def segment_image(image, points):
 def generate_image(image, mask_image):
     prompt = "high resolution"
     image_pil = Image.fromarray(image)
-    inverted_mask_image = (mask_image.astype(np.uint8))
-
-    image = pipe(prompt="", image=image_pil, mask_image=inverted_mask_image).images[0]
+    kernel = np.ones((5,5), np.uint8)
+    mask_image_ = mask_image.astype(np.uint8)
+    # dilated_mask_image = (cv2.dilate(mask_image_, kernel, iterations=1).astype(np.uint8))
+    # dilated_mask_image_ = Image.fromarray(dilated_mask_image)
+    image = pipe(prompt=prompt, image=image_pil, mask_image=mask_image_).images[0]
     
     return image
 

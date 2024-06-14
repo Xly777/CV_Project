@@ -3,6 +3,12 @@ import os
 import random
 import shutil
 from pathlib import Path
+from PIL import Image
+
+def resize_image(image_path, output_path, size=(512, 512)):
+    with Image.open(image_path) as img:
+        img_resized = img.resize(size, Image.LANCZOS)
+        img_resized.save(output_path)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,14 +30,16 @@ def main():
                 images.append(Path(root) / file)
 
     if len(images) < 1000:
-        raise ValueError("输入目录中图像数量不足1000张")
+        raise ValueError("输入目录中图像数量不足5000张")
 
-    selected_images = random.sample(images, 1000)
+    selected_images = random.sample(images, 5000)
 
     for img in selected_images:
-        shutil.copy(img, output_dir / img.name)
+        output_path = output_dir / img.name
+        resize_image(img, output_path)
 
     print(f"成功抽取1000张图片到 {output_dir}")
-
+# python ./scripts/split_test.py --input "/beegfs/buddy-dir/zhengf_lab/celebA/Img/img_align_celeba_png" --output celebA
+# python ./scripts/split_test.py --input "/beegfs/buddy-dir/zhengf_lab/places" --output places
 if __name__ == '__main__':
     main()
