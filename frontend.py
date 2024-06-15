@@ -25,7 +25,10 @@ def clear_coordinates():
     global click_coordinates
     click_coordinates = []
     return ""
-
+def cancel():
+    global click_coordinates
+    click_coordinates = click_coordinates[:-1]
+    return click_coordinates
 with gr.Blocks() as demo:
     best_mask=gr.State(None)
     with gr.Row():
@@ -33,9 +36,11 @@ with gr.Blocks() as demo:
         img_mask = gr.Image(type="pil", label="处理后图片")
         img_result=gr.Image(type="pil", label="结果图片")
     coordinates_display = gr.Textbox(label="点击位置坐标", interactive=False)
-    clear_button = gr.Button("清除点击")
+    cancel_button=gr.Button("撤销上一次点击")
+    clear_button = gr.Button("清除所有点击")
     result_button=gr.Button("生成图片")
     img_input.select(get_coordinates, [img_input], [img_input, coordinates_display, img_mask,best_mask])
+    cancel_button.click(cancel, [], coordinates_display)
     clear_button.click(clear_coordinates, [], coordinates_display)
     result_button.click(generate_gradio_image, [img_input,best_mask], img_result)
 
