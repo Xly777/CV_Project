@@ -3,22 +3,18 @@ from skimage.metrics import structural_similarity as ssim
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
-import torchvision.models as models
+from torchvision.models import inception_v3
 from scipy.linalg import sqrtm
 from skimage.color import rgb2gray
+from PIL import Image
 
 def calculate_psnr(origin_img, gen_img):
-    if origin_img.ndim == 3:
-        origin_img = rgb2gray(origin_img)
-    if gen_img.ndim == 3:
-        gen_img = rgb2gray(gen_img)
     mse = np.mean((origin_img - gen_img) ** 2)
     if mse == 0:
         return float('inf')
     max_pixel = 255.0
     psnr = 20 * np.log10(max_pixel / np.sqrt(mse))
     return psnr
-
 
 def calculate_ssim(origin_img, gen_img):
     # Ensure the images are grayscale
@@ -29,44 +25,58 @@ def calculate_ssim(origin_img, gen_img):
     
     ssim_value = ssim(origin_img, gen_img, data_range=gen_img.max() - gen_img.min())
     return ssim_value
-
-def calculate_fid(origin_img, gen_img):
-    # Ensure images are 3D
-    if origin_img.ndim == 2:
-        origin_img = np.stack([origin_img] * 3, axis=-1)
-    if gen_img.ndim == 2:
-        gen_img = np.stack([gen_img] * 3, axis=-1)
-
-    # Convert numpy arrays to tensors
+def preprocess_image(image):
     preprocess = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize(299),
+        transforms.Resize((299, 299)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    
-    origin_img = preprocess(origin_img).unsqueeze(0)
-    gen_img = preprocess(gen_img).unsqueeze(0)
+    image = preprocess(Image.fromarray(image))
+    image = image.unsqueeze(0)
+    return image
 
-    # Load pre-trained InceptionV3 model
-    model = models.inception_v3(pretrained=True, transform_input=False)
-    model.fc = nn.Identity()  # Remove final fully connected layer
+# 定义函数来计算图片特征
+def extract_features(image, model, device):
     model.eval()
-
-    # Extract features
     with torch.no_grad():
-        origin_features = model(origin_img).numpy()
-        gen_features = model(gen_img).numpy()
+        image = image.to(device)
+        features = model(image)
+    return features.cpu().numpy().squeeze()
 
-    # Calculate mean and covariance statistics
-    mu1, sigma1 = np.mean(origin_features, axis=0), np.cov(origin_features, rowvar=False)
-    mu2, sigma2 = np.mean(gen_features, axis=0), np.cov(gen_features, rowvar=False)
-
-    # Calculate FID
-    ssdiff = np.sum((mu1 - mu2) ** 2.0)
-    covmean = sqrtm(sigma1.dot(sigma2))
-    if np.iscomplexobj(covmean):
+# 计算两个高斯分布之间的FID
+def compute_fid(mu1, sigma1, mu2, sigma2, eps=1e-6):
+    covmean, _ = sqrtm(sigma1.dot(sigma2), disp=False)
+    if not np.isfinite(covmean).all():
         covmean = covmean.real
+    fid = np.sum((mu1 - mu2) ** 2) + np.trace(sigma1 + sigma2 - 2 * covmean)
+    return fid
 
-    fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
+# 定义主函数
+def calculate_fid(origin_img, gen_img):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    inception_model = inception_v3(pretrained=True, transform_input=False).to(device)
+    inception_model.fc = nn.Identity()
+
+    # 预处理图片
+    image1 = preprocess_image(origin_img)
+    image2 = preprocess_image(gen_img)
+
+    # 获取图片特征
+    features1 = extract_features(image1, inception_model, device)
+    features2 = extract_features(image2, inception_model, device)
+
+    # 检查特征维度
+    print(f'Features1 shape: {features1.shape}')
+    print(f'Features2 shape: {features2.shape}')
+
+    # 计算特征均值和协方差
+    mu1, sigma1 = np.mean(features1, axis=0), np.cov(features1, rowvar=False)
+    mu2, sigma2 = np.mean(features2, axis=0), np.cov(features2, rowvar=False)
+
+    # 检查均值和协方差矩阵的维度
+    print(f'mu1 shape: {mu1.shape}, sigma1 shape: {sigma1.shape}')
+    print(f'mu2 shape: {mu2.shape}, sigma2 shape: {sigma2.shape}')
+
+    # 计算FID
+    fid = compute_fid(mu1, sigma1, mu2, sigma2)
     return fid

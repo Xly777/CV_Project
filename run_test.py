@@ -10,13 +10,15 @@ def process_images_and_masks(image_directory, mask_directory, output_directory, 
     
     if num_images:
         image_files = image_files[:num_images]
-    
+    image_files = image_files[210:]
     logger.info(f"Number of images to process: {len(image_files)}")
 
     logger.info("starting...")
     for image_file in tqdm(image_files, desc="Processing images"):
         image_name = os.path.splitext(os.path.basename(image_file))[0]
         image = Image.open(image_file)
+        if image.mode == 'L':
+                image = image.convert('RGB')
         image_np = np.array(image)
         
         for subdir in os.listdir(mask_directory):
@@ -46,12 +48,12 @@ def process_images_and_masks(image_directory, mask_directory, output_directory, 
                     result_image.save(result_image_path)
                     logger.info(f"Saved generated image to {result_image_path}")
 
-image_directory = "datasets/celebA"
-mask_directory = "datasets/mask"
-output_directory = "outputs/celebA"
-num_images = 2000
+# image_directory = "datasets/celebA"
+# mask_directory = "datasets/mask"
+# output_directory = "outputs/celebA"
+# num_images = 2000
 
-process_images_and_masks(image_directory, mask_directory, output_directory, num_images)
+# process_images_and_masks(image_directory, mask_directory, output_directory, num_images)
 
 image_directory = "datasets/places"
 mask_directory = "datasets/mask"
