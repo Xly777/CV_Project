@@ -19,8 +19,8 @@ def apply_mask(image_path, mask_path, output_path):
     image.save(output_path)
 
 # 使用示例
-image_path = "../source.png"
-mask_path = "../mask.png"
-output_path = "../source_mask.png"
+image_path = "image/source2.png"
+mask_path = "image/mask2.png"
+output_path = "image/source_mask2.png"
 
 apply_mask(image_path, mask_path, output_path)
